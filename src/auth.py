@@ -2,28 +2,34 @@ from pathlib import Path
 import json
 from argon2 import PasswordHasher
 from cryptography.hazmat.primitives.kdf.argon2 import Argon2id
-frop
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 import base64
 import os
-json_content = json.JSONEncoder
+import secrets
+from log import logger
 
-content = {"password_hash": None, "kdf_salt": None}
 
-json_content.encode(content)
+content = dict()
+
+
 
 ph = PasswordHasher()
 
-def set_pw(master_pw: str, auth_file: Path) -> bool:
+def setup_authjson(master_pw: str, root: Path) -> bool:
     content["password_hash"] = ph.hash(master_pw)
-    content["kdf_salt"] = derive_master_key()
+    master_key, salt_master_key = derive_master_key(master_pw)
+    content["kdf_salt"] = salt_master_key
 
-    with open(auth_file, "w") as file:
 
+    user_key_wrapped, salt_user_key = gen_user_key_wrapped(master_key)
+    content["wrapped_user_key"] = user_key_wrapped
+    content["user_key_nonce"] =  salt_user_key
 
-        file.write()
+    with open(root / "auth.json", "w") as file:
+        file.write(json.dumps(content))
     return True
 
-def derive_master_key() -> str:
+def derive_master_key(master_pw: str) -> tuple[bytes, str]:
     salt = os.urandom(16)
 
     kdf = Argon2id(
@@ -32,12 +38,20 @@ def derive_master_key() -> str:
         iterations=1,
         lanes=4,
         memory_cost=64 * 1024,
-
-
     )
+    master_key = kdf.derive(master_pw.encode())
 
-
-    return salt
+    return master_key, base64.b64encode(salt).decode()
 
 
 # ph.verify(hash, "password")
+
+def gen_user_key_wrapped(master_key: bytes):
+
+    user_key = secrets.token_bytes(32)
+
+    nonce = os.urandom(12)
+
+    user_key_enc = AESGCM(master_key).encrypt(nonce, user_key, None)
+
+    return base64.b64encode(user_key_enc).decode(), base64.b64encode(nonce).decode()

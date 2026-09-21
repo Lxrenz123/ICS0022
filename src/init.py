@@ -3,7 +3,7 @@ from getpass import getpass
 from log import logger
 import os
 from pathlib import Path
-from auth import set_pw
+from auth import setup_authjson
 
 def init():
     try:
@@ -12,7 +12,7 @@ def init():
         root = create_superlock_root()
 
         master_pw = set_masterpw()
-        set_pw(master_pw, root / "auth.json")
+        setup_authjson(master_pw, root)
 
     except KeyboardInterrupt:
         logger.info("Setup and Initialization aborted and reset")
