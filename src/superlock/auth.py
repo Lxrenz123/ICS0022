@@ -6,7 +6,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 import base64
 import os
 import secrets
-from log import logger
+from .log import logger
 
 
 content = dict()
@@ -29,8 +29,9 @@ def setup_authjson(master_pw: str, root: Path) -> bool:
         file.write(json.dumps(content))
     return True
 
-def derive_master_key(master_pw: str) -> tuple[bytes, str]:
-    salt = os.urandom(16)
+def derive_master_key(master_pw: str, salt = None) -> tuple[bytes, str]:
+    if not salt:
+        salt = os.urandom(16)
 
     kdf = Argon2id(
         salt=salt,

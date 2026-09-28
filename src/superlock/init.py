@@ -1,9 +1,9 @@
 #import argon2-cffi
 from getpass import getpass
-from log import logger
+from .log import logger
 import os
 from pathlib import Path
-from auth import setup_authjson
+from .auth import setup_authjson
 
 def init():
     try:

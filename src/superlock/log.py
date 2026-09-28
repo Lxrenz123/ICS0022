@@ -1,4 +1,7 @@
 import logging
+from pathlib import Path
+
+
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -20,7 +23,7 @@ console_handler.setLevel(logging.DEBUG)
 console_handler.setFormatter(console_format)
 
 # File Handler
-file_handler = logging.FileHandler(filename="logs", mode="a", encoding="utf-8")
+file_handler = logging.FileHandler(filename=f"{Path.home() / ".superlock" / "logs.txt"}", mode="a", encoding="utf-8")
 file_handler.setFormatter(file_format)
 file_handler.setLevel(logging.INFO)
 
