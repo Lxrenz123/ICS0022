@@ -36,6 +36,8 @@ def main():
         encrypt(args.path)
     elif args.action == "init":
         init()
+    elif args.action == "decrypt":
+        decrypt()
 
 if __name__ == "__main__":
     main()

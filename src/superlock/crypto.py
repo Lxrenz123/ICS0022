@@ -4,7 +4,7 @@ import uuid
 import json
 import os
 import time
-from .auth import derive_master_key()
+from .auth import derive_master_key
 from pathlib import Path
 import base64
 root = Path.home() /".superlock"
@@ -20,6 +20,8 @@ def encrypt(path: str):
 
     aad_header, key, nonce, file_id = generate_header(user_key)
 
+    print(aad_header)
+
     p = Path(path).expanduser()
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_BINARY", 0)
     try:
@@ -30,25 +32,25 @@ def encrypt(path: str):
     with os.fdopen(fd, "rb") as file:
         data = file.read()
 
-    # aad_header to bytes
+   
 
     data_enc = AESGCM(key).encrypt(nonce, data, aad_header)
 
     with open(root / f"vault/{file_id}.sl" ,"wb") as file:
-        file.write(data_enc)
+        file.write(aad_header + data_enc)
 
 
 def get_mk_salt():
     with open(root / "auth.json", "r") as file:
         content = json.loads(file.read())
         salt = content["kdf_salt"]
-    return base64.b64decode(salt.decode())
+    return base64.b64decode(salt.encode())
 
 def get_user_key(master_key: bytes):
     with open(root / "auth.json","r") as file:
         content = json.loads(file.read())
-        user_key_enc = base64.b64decode(content["wrapped_user_key"].decode())
-        user_key_nonce = base64.b64decode(content["user_key_nonce"].decode())
+        user_key_enc = base64.b64decode(content["wrapped_user_key"].encode())
+        user_key_nonce = base64.b64decode(content["user_key_nonce"].encode())
 
         user_key = AESGCM(master_key).decrypt(user_key_nonce, user_key_enc, None)
 
@@ -63,18 +65,24 @@ def generate_header(user_key):
     key = AESGCM.generate_key(bit_length=256)
     nonce = os.urandom(12)
 
-    file_id = uuid.uuid4()
+    file_id = str(uuid.uuid4())
     owner = os.getuid()
     created = time.time()
     algo = "AES-GCM-256"
     nonce = os.urandom(12)
-    wrapped_key = AESGCM(user_key).encrypt(nonce=nonce, data=key,aad=None)
+    wrapped_key = AESGCM(user_key).encrypt(nonce=nonce, data=key, associated_data=None)
+    b64_nonce = base64.b64encode(nonce).decode()
+    b64_wrapped_key = base64.b64encode(wrapped_key).decode()
 
-    header_dict = {"file_id":file_id,"owner":owner,"created":created,"algo":algo,"nonce":nonce,"wrapped_key":wrapped_key}
+    header_dict = {"file_id":file_id,"owner":owner,"created":created,"algo":algo,"nonce":b64_nonce,"wrapped_key":b64_wrapped_key}
 
     header_json = json.dumps(header_dict).encode()
 
-    header.append(bytes(len(header_json)))
+    header.append(len(header_json).to_bytes())
     header.append(header_json)
 
     return b"".join(header), key, nonce, file_id
+
+
+
+def decrypt():
