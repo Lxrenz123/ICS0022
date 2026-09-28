@@ -14,6 +14,8 @@ def encrypt(path: str):
 
     master_pw = "test"
 
+
+    
     master_key, salt = derive_master_key(master_pw, get_mk_salt())
 
     user_key = get_user_key(master_key)
@@ -34,7 +36,7 @@ def encrypt(path: str):
 
    
 
-    data_enc = AESGCM(key).encrypt(nonce, data, aad_header)
+    data_enc = AESGCM(key).encrypt(nonce, data, None)
 
     with open(root / f"vault/{file_id}.sl" ,"wb") as file:
         file.write(aad_header + data_enc)
@@ -86,3 +88,4 @@ def generate_header(user_key):
 
 
 def decrypt():
+    pass
