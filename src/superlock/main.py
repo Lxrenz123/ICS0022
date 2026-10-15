@@ -1,8 +1,8 @@
 def main():
     import argparse
     from .init import init
-    from .crypto import encrypt
-
+    from .crypto import encrypt, decrypt, ls_vault
+    from .delete import delete
     # parser + sub parser for command(encrypt,decrypt,init,delete)
     parser = argparse.ArgumentParser(prog="superlock")
     sub = parser.add_subparsers(dest="action", required=True)
@@ -27,8 +27,8 @@ def main():
 
 
     # superlock delete
-    delete = sub.add_parser("delete")
-    delete.add_argument("filename", help="filename of the file to delete from the vault")
+    delete_parser = sub.add_parser("delete")
+    delete_parser.add_argument("filename", help="filename of the file to delete from the vault")
 
     args = parser.parse_args()
 
@@ -37,7 +37,11 @@ def main():
     elif args.action == "init":
         init()
     elif args.action == "decrypt":
-        decrypt()
+        decrypt(args.filename)
+    elif args.action == "list":
+        ls_vault()
+    elif args.action == "delete":
+        delete(args.filename)
 
 if __name__ == "__main__":
     main()

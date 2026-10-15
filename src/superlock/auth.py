@@ -7,27 +7,14 @@ import base64
 import os
 import secrets
 from .log import logger
+from getpass import getpass
+from argon2.exceptions import VerificationError, VerifyMismatchError, InvalidHashError
 
 
-content = dict()
 
-
+content = {}
 
 ph = PasswordHasher()
-
-def setup_authjson(master_pw: str, root: Path) -> bool:
-    content["password_hash"] = ph.hash(master_pw)
-    master_key, salt_master_key = derive_master_key(master_pw)
-    content["kdf_salt"] = salt_master_key
-
-
-    user_key_wrapped, salt_user_key = gen_user_key_wrapped(master_key)
-    content["wrapped_user_key"] = user_key_wrapped
-    content["user_key_nonce"] =  salt_user_key
-
-    with open(root / "auth.json", "w") as file:
-        file.write(json.dumps(content))
-    return True
 
 def derive_master_key(master_pw: str, salt = None) -> tuple[bytes, str]:
     if not salt:
@@ -45,14 +32,25 @@ def derive_master_key(master_pw: str, salt = None) -> tuple[bytes, str]:
     return master_key, base64.b64encode(salt).decode()
 
 
-# ph.verify(hash, "password")
 
-def gen_user_key_wrapped(master_key: bytes):
+def authenticate() -> bool:
+    from .crypto import get_auth
 
-    user_key = secrets.token_bytes(32)
+    master_pw = getpass()
 
-    nonce = os.urandom(12)
+    hashed_pw = get_auth("password_hash")
 
-    user_key_enc = AESGCM(master_key).encrypt(nonce, user_key, None)
+    try:
+        if ph.verify(hashed_pw, master_pw):
+            return master_pw
 
-    return base64.b64encode(user_key_enc).decode(), base64.b64encode(nonce).decode()
+    except InvalidHashError:
+        print("Invalid Hash, corrupted auth.json")
+        raise SystemExit(1) from None
+    except VerifyMismatchError:
+        print("Invalid password")
+        raise SystemExit(1) from None
+    except VerificationError:
+        print("Auth failed")
+        raise SystemExit(1) from None
+
