@@ -1,6 +1,5 @@
 #import argon2-cffi
 from getpass import getpass
-from .log import logger
 import os
 from pathlib import Path
 from cryptography.hazmat.primitives.kdf.argon2 import Argon2id
@@ -14,9 +13,11 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 content = dict()
 ph = PasswordHasher()
 
+
+
 def init():
 
-    if Path.home() / ".superlock":
+    if (Path.home() / ".superlock").is_dir():
         reset = input('SuperLock directory already exists in your home, do you want to reset? y/n: ')
         if reset != "y":
             return
@@ -24,15 +25,16 @@ def init():
     try:
         print("CTRL + C anytime to reset initialization and abort")
 
-        root = create_superlock_root()
+        
 
         master_pw = set_masterpw()
+        root = create_superlock_root()
         setup_authjson(master_pw, root)
 
         
 
     except KeyboardInterrupt:
-        logger.info("Setup and Initialization aborted and reset")
+        print("Setup and Initialization aborted")
 
 
 
@@ -44,7 +46,7 @@ def create_superlock_root():
         Path.mkdir(superlock_dir / "vault", exist_ok=True)
         Path.mkdir(superlock_dir / "keys", exist_ok=True)
 
-        logger.info(f"{superlock_dir} successfully created")
+        print(f"{superlock_dir} successfully created")
     except FileExistsError:
         print(f"{superlock_dir} already exists, abort")
         exit()

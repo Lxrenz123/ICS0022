@@ -3,6 +3,7 @@ def main():
     from .init import init
     from .crypto import encrypt, decrypt, ls_vault
     from .delete import delete
+    from .purge import purge
     # parser + sub parser for command(encrypt,decrypt,init,delete)
     parser = argparse.ArgumentParser(prog="superlock")
     sub = parser.add_subparsers(dest="action", required=True)
@@ -13,6 +14,10 @@ def main():
 
     # list vault files
     sub.add_parser("list")
+
+    
+    # list vault files
+    sub.add_parser("purge")
 
 
     # superlock encrypt
@@ -43,6 +48,8 @@ def main():
         ls_vault()
     elif args.action == "delete":
         delete(args.filename)
+    elif args.action == "purge":
+        purge()
 
 if __name__ == "__main__":
     main()

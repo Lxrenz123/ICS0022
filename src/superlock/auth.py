@@ -6,7 +6,6 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 import base64
 import os
 import secrets
-from .log import logger
 from getpass import getpass
 from argon2.exceptions import VerificationError, VerifyMismatchError, InvalidHashError
 
