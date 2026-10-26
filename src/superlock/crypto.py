@@ -16,14 +16,23 @@ root = Path.home() /".superlock"
 MAGIC = bytes.fromhex("534C5631")
 LENGTH_SIZE = 4
 
-def encrypt(path: str):
-    key = secrets.token_bytes(32)
+def encrypt(path: str, name: str = None):
+
+
     master_key, salt = derive_master_key(authenticate(), get_mk_salt())
 
     user_key = get_user_key(master_key)
-    aad_header, key, file_nonce, file_id = generate_header(user_key)
 
     p = Path(path).expanduser()
+    if not name:
+        name = p.name
+
+    index = decrypt_index(master_key)
+    if name in index.values():
+        raise ValueError(f"A file with this name already exists in your vault: {name}")
+
+    aad_header, key, file_nonce, file_id = generate_header(user_key)
+
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_BINARY", 0)
     try:
         fd = os.open(p, flags)
@@ -40,7 +49,8 @@ def encrypt(path: str):
         file.write(aad_header)
         file.write(ct)
 
-    if not add_to_index({file_id: p.name}, master_key):
+
+    if not add_to_index({file_id: name}, master_key):
         raise Exception("Failed to add to Index")
     
 
@@ -184,6 +194,12 @@ def ls_vault():
 
 def add_to_index(entry: dict, master_key):
     index = decrypt_index(master_key)
+    duplicate_names = set(entry.values()) & set(index.values())
+    if duplicate_names:
+        raise ValueError(
+            "A file with this name already exists in your vault: "
+            f"{next(iter(duplicate_names))}"
+        )
     index.update(entry)
 
     user_key = get_user_key(master_key)

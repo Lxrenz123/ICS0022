@@ -18,6 +18,7 @@ def main():
     # superlock encrypt
     enc = sub.add_parser("encrypt")
     enc.add_argument("path", help="file path to the file to encrypt")
+    enc.add_argument("name", help="filename to store the encrypted file as in the vault",nargs="?", default=None)
 
 
     # superlock decrypt
@@ -33,7 +34,7 @@ def main():
     args = parser.parse_args()
 
     if args.action == "encrypt":
-        encrypt(args.path)
+        encrypt(args.path, args.name)
     elif args.action == "init":
         init()
     elif args.action == "decrypt":

@@ -5,41 +5,53 @@ SuperLock is a secure command-line file encryption and management tool written i
 The purpose of the project is to provide a simple way to protect secret files on your system.
 ## Project Scope
 
-SuperLock will provide:
+SuperLock provides:
 * Secure file encryption and decryption
 * A custom encrypted `.sl` file format
-* Per-user file ownership and access control
 * Secure deletion
-* Logging of activity
-* and more
+* Logging 
 
 ## Technology
 
-SuperLock will be implemented in Python.
+SuperLock is implemented in Python.
 
-Planned external libraries:
+External libraries:
 
 * `cryptography` — for all cryptography
 * `argon2-cffi` — password hashing and password-based key derivation
 
+## Installation
 
-## Planned Command-Line Interface
+Clone the repository:
+
+```bash
+git clone https://github.com/Lxrenz123/ICS0022
+cd superlock
+```
+
+From the project directory:
+```bash
+pip install .
+```
+
+## Usage
 
 ### Initialize SuperLock
 
 ```bash
 superlock init
 ```
-
-Creates the initial SuperLock configuration and sets up the user account.
+* creates .superlock in your home directory with all necessary files
+* sets your master password used for all operations
 
 ### Encrypt a file
 
 ```bash
-superlock encrypt <file>
+superlock encrypt <file> <name>
 ```
 
-Encrypts a file and stores it in the SuperLock (.sl) format.
+Encrypts a file and stores it in the SuperLock (.sl) format insinde ~/.superlock/vault/
+Name is optional, by default it equals filename
 
 
 ### Decrypt a file
@@ -47,7 +59,7 @@ Encrypts a file and stores it in the SuperLock (.sl) format.
 ```bash
 superlock decrypt <file.sl>
 ```
-Decrypts a SuperLock file after successful authentication and integrity verification.
+Decrypts a SuperLock file after successful integrity verification.
 
 
 ### List stored files
@@ -56,15 +68,9 @@ Decrypts a SuperLock file after successful authentication and integrity verifica
 superlock list
 ```
 
-Displays files stored in the SuperLock vault without exposing their contents, only displaying metadata.
+Displays files stored in the SuperLock vault without exposing their contents, only displaying name.
 
-### Show file information
 
-```bash
-superlock info <file.sl>
-```
-
-Displays non-sensitive information about a SuperLock container.
 
 ### Help
 
@@ -75,16 +81,4 @@ superlock -h
 Displays available commands and usage information.
 
 
-## Installation
 
-Clone the repository:
-
-```bash
-git clone <repository-url>
-cd superlock
-```
-
-From the project directory:
-```bash
-pip install .
-```
