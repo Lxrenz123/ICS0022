@@ -34,7 +34,7 @@ cd ICS0022
 
 From the project directory:
 ```bash
-pip install .
+pipx install .
 ```
 
 ## Usage 
