@@ -26,7 +26,7 @@ Clone the repository:
 
 ```bash
 git clone https://github.com/Lxrenz123/ICS0022
-cd superlock
+cd ICS0022
 ```
 
 From the project directory:
