@@ -100,10 +100,9 @@ def generate_header(user_key):
 
 def decrypt(filename: str):
 
-    filepath = lookup_index(filename)
-
     master_key, salt = derive_master_key(authenticate(), get_mk_salt())
     user_key = get_user_key(master_key=master_key)
+    filepath = lookup_index(filename, master_key)
 
 
     with open(root / "vault" / filepath, "rb") as file:
@@ -143,27 +142,26 @@ def decrypt(filename: str):
             None,
         )
 
-        plaintext_file = AESGCM(file_key).decrypt(
+        plain_bytes = AESGCM(file_key).decrypt(
             file_nonce,
             ciphertext,
             header,
         )
-
-        print(plaintext_file)
+        
+        print(plain_bytes)
 
     
 
+def lookup_index(filename: str, master_key: bytes | None = None):
 
-def lookup_index(filename):
-
-    index = decrypt_index()
+    index = decrypt_index(master_key)
     for uuid, filen in index.items():
         if filen == filename:
             return uuid + ".sl"
     
     raise Exception("File not found") 
 
-def decrypt_index(master_key: None):
+def decrypt_index(master_key= None):
 
     if not master_key:
         master_key, salt = derive_master_key(authenticate(), get_mk_salt())
@@ -188,7 +186,6 @@ def add_to_index(entry: dict, master_key):
     index = decrypt_index(master_key)
     index.update(entry)
 
-    master_key
     user_key = get_user_key(master_key)
     nonce = get_auth("nonce_index")
 
@@ -204,6 +201,29 @@ def add_to_index(entry: dict, master_key):
     return True
 
 
+def remove_from_index(filename: str, master_key: bytes):
+    index = decrypt_index(master_key)
+    file_id = next(
+        (file_id for file_id, stored_filename in index.items()
+         if stored_filename == filename),
+        None,
+    )
+    if file_id is None:
+        raise FileNotFoundError(f"File not found in index: {filename}")
+
+    del index[file_id]
+    user_key = get_user_key(master_key)
+    nonce = get_auth("nonce_index")
+    index_enc = AESGCM(user_key).encrypt(
+        nonce,
+        json.dumps(index).encode(),
+        None,
+    )
+
+    with open(root / "index.enc", "wb") as file:
+        file.write(index_enc)
+
+
 def get_auth(key: str):
     with open(root / "auth.json", "r") as file:
         auth = file.read()
@@ -213,4 +233,3 @@ def get_auth(key: str):
         return auth_dict[key]
 
     return base64.b64decode(auth_dict.get(key))
-

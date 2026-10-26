@@ -33,7 +33,7 @@ def derive_master_key(master_pw: str, salt = None) -> tuple[bytes, str]:
 
 
 
-def authenticate() -> bool:
+def authenticate():
     from .crypto import get_auth
 
     master_pw = getpass()
@@ -48,9 +48,9 @@ def authenticate() -> bool:
         print("Invalid Hash, corrupted auth.json")
         raise SystemExit(1) from None
     except VerifyMismatchError:
-        print("Invalid password")
+        print("Authentication failed")
         raise SystemExit(1) from None
     except VerificationError:
-        print("Auth failed")
+        print("Authentication failed")
         raise SystemExit(1) from None
 

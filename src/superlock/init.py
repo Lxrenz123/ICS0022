@@ -15,6 +15,12 @@ content = dict()
 ph = PasswordHasher()
 
 def init():
+
+    if Path.home() / ".superlock":
+        reset = input('SuperLock directory already exists in your home, do you want to reset? y/n: ')
+        if reset != "y":
+            return
+
     try:
         print("CTRL + C anytime to reset initialization and abort")
 
