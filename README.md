@@ -20,7 +20,7 @@ External libraries:
 * `cryptography` — for all cryptography
 * `argon2-cffi` — password hashing and password-based key derivation
 
-## Installation
+## Installation (only tested on Linux)
 
 Clone the repository:
 
@@ -34,7 +34,8 @@ From the project directory:
 pip install .
 ```
 
-## Usage
+## Usage 
+(only tested on Linux)
 
 ### Initialize SuperLock
 
