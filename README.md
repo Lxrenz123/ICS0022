@@ -22,6 +22,9 @@ External libraries:
 
 ## Installation (only tested on Linux)
 
+#### Requirements:
+* Python >= 3.10
+
 Clone the repository:
 
 ```bash
