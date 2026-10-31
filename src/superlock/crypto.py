@@ -1,4 +1,5 @@
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from cryptography import exceptions
 import secrets
 import uuid
 import json
@@ -118,12 +119,6 @@ def decrypt(filename: str):
     with open(root / "vault" / filepath, "rb") as file:
         data = file.read()
 
-        if len(data) < len(MAGIC) + LENGTH_SIZE:
-            raise ValueError("Encrypted file is too short")
-
-        if data[:len(MAGIC)] != MAGIC:
-            raise ValueError("Invalid file magic")
-
         magic_end = len(MAGIC)
         length_end = magic_end + LENGTH_SIZE
 
@@ -151,12 +146,14 @@ def decrypt(filename: str):
             wrapped_key,
             None,
         )
-
-        plain_bytes = AESGCM(file_key).decrypt(
-            file_nonce,
-            ciphertext,
-            header,
-        )
+        try:
+            plain_bytes = AESGCM(file_key).decrypt(
+                file_nonce,
+                ciphertext,
+                header,
+            )
+        except exceptions.InvalidTag:
+            raise exceptions.InvalidTag(f"Integrity verifcation for file {filepath} ({filename}) FAILED ")
         
         print(plain_bytes)
 
@@ -177,18 +174,26 @@ def decrypt_index(master_key= None):
         master_key, salt = derive_master_key(authenticate(), get_mk_salt())
 
     user_key = get_user_key(master_key)
-    with open(root / "index.enc", "rb") as file:
-        index_enc = file.read()
-        index_plain = AESGCM(user_key).decrypt(get_auth("nonce_index"),index_enc, None).decode()
-
+    try:
+        with open(root / "index.enc", "rb") as file:
+            index_enc = file.read()
+            index_plain = AESGCM(user_key).decrypt(get_auth("nonce_index"),index_enc, None).decode()
+    except exceptions.InvalidTag:
+        raise exceptions.InvalidTag(f"{root / "index.enc"} Integrity verification failed; cannot proceed")
+        
     return json.loads(index_plain)
 
 def ls_vault():
+    index = decrypt_index()
 
-   index = decrypt_index()
-
-   for value in index.values():
-       print(value)
+    print("\nVault files")
+    print("-" * 40)
+    if not index:
+        print("  (empty)")
+    else:
+        for number, filename in enumerate(index.values(), start=1):
+            print(f"{number:>3}. {filename}")
+    print(f"\nTotal: {len(index)} file(s)")
 
 
 

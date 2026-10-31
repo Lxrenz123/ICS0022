@@ -20,7 +20,7 @@ External libraries:
 * `cryptography` — for all cryptography
 * `argon2-cffi` — password hashing and password-based key derivation
 
-## Installation (only tested on Linux)
+## Installation 
 
 #### Requirements:
 * Python >= 3.10
@@ -38,7 +38,7 @@ pipx install .
 ```
 
 ## Usage 
-(only tested on Linux)
+
 
 ### Initialize SuperLock
 

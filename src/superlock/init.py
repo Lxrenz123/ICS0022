@@ -10,6 +10,9 @@ import base64
 import secrets
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from .purge import purge
+import hmac
+from .auth import compute_auth_integrity_hmac, serialize_auth_data
+
 content = dict()
 ph = PasswordHasher()
 
@@ -58,7 +61,7 @@ def create_superlock_root():
         Path.mkdir(superlock_dir, exist_ok=True)
 
         Path.mkdir(superlock_dir / "vault", exist_ok=True)
-        Path.mkdir(superlock_dir / "keys", exist_ok=True)
+
 
         print(f"[+] {superlock_dir} successfully created")
     except FileExistsError:
@@ -89,6 +92,8 @@ def gen_user_key_wrapped(master_key: bytes):
 
     return base64.b64encode(user_key_enc).decode(), base64.b64encode(nonce).decode()
 
+
+
 def setup_authjson(master_pw: str, root: Path) -> bool:
     content["password_hash"] = ph.hash(master_pw)
     master_key, salt_master_key = derive_master_key(master_pw)
@@ -99,9 +104,12 @@ def setup_authjson(master_pw: str, root: Path) -> bool:
     content["wrapped_user_key"] = user_key_wrapped
     content["user_key_nonce"] =  salt_user_key
     content["nonce_index"] = base64.b64encode(os.urandom(12)).decode()
-
-    with open(root / "auth.json", "w") as file:
-        file.write(json.dumps(content))
+    data = serialize_auth_data(content)
+    content["hmac_tag"] = base64.b64encode(
+        compute_auth_integrity_hmac(master_key, b"auth.json mac", data)
+    ).decode()
+    with open(root / "auth.json", "wb") as file:
+        file.write(serialize_auth_data(content))
 
     create_index(master_pw)
 
