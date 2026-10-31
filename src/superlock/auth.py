@@ -52,11 +52,11 @@ def serialize_auth_data(data: dict) -> bytes:
         separators=(",", ":"),
     ).encode("utf-8")
 def authenticate():
-    from .crypto import get_auth, get_mk_salt
+    from .crypto import get_auth
 
     master_pw = getpass()
 
-    master_key, salt= derive_master_key(master_pw, get_mk_salt())
+    master_key, salt= derive_master_key(master_pw, get_auth("kdf_salt"))
 
     with open(Path.home() / ".superlock" / "auth.json", "rb") as f:
         content = json.loads(f.read())

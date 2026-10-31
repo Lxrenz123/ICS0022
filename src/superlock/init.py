@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 from cryptography.hazmat.primitives.kdf.argon2 import Argon2id
 from argon2 import PasswordHasher
-from .crypto import get_user_key, get_mk_salt, get_auth
+from .crypto import get_user_key, get_auth
 from .auth import derive_master_key
 import base64
 import secrets
@@ -123,7 +123,7 @@ def create_index(master_pw: str):
         auth = json.loads(auth)
 
 
-    key, salt = derive_master_key(master_pw, get_mk_salt())
+    key, salt = derive_master_key(master_pw, get_auth("kdf_salt"))
     user_key = get_user_key(key)
     nonce = get_auth("nonce_index")
 

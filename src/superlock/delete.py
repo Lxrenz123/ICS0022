@@ -1,12 +1,13 @@
 from .auth import authenticate, derive_master_key
-from .crypto import get_mk_salt, lookup_index, remove_from_index
+from .crypto import lookup_index, remove_from_index, get_auth
 from pathlib import Path
 
 vault = Path.home() / ".superlock" / "vault"
 from .purge import overwrite_file
 
+
 def delete(filename: str) -> bool:
-    master_key, salt = derive_master_key(authenticate(), get_mk_salt())
+    master_key, salt = derive_master_key(authenticate(), get_auth("kdf_salt"))
 
     filepath = lookup_index(filename, master_key)
     if filepath is None:

@@ -20,7 +20,7 @@ LENGTH_SIZE = 4
 def encrypt(path: str, name: str = None):
 
 
-    master_key, salt = derive_master_key(authenticate(), get_mk_salt())
+    master_key, salt = derive_master_key(authenticate(), get_auth("kdf_salt"))
 
     user_key = get_user_key(master_key)
 
@@ -56,11 +56,6 @@ def encrypt(path: str, name: str = None):
     
 
 
-def get_mk_salt():
-    with open(root / "auth.json", "r") as file:
-        content = json.loads(file.read())
-        salt = content["kdf_salt"]
-    return base64.b64decode(salt.encode())
 
 
 
@@ -111,7 +106,7 @@ def generate_header(user_key):
 
 def decrypt(filename: str):
 
-    master_key, salt = derive_master_key(authenticate(), get_mk_salt())
+    master_key, salt = derive_master_key(authenticate(), get_auth("kdf_salt"))
     user_key = get_user_key(master_key=master_key)
     filepath = lookup_index(filename, master_key)
 
@@ -171,7 +166,7 @@ def lookup_index(filename: str, master_key: bytes | None = None):
 def decrypt_index(master_key= None):
 
     if not master_key:
-        master_key, salt = derive_master_key(authenticate(), get_mk_salt())
+        master_key, salt = derive_master_key(authenticate(), get_auth("kdf_salt"))
 
     user_key = get_user_key(master_key)
     try:
@@ -248,9 +243,12 @@ def remove_from_index(filename: str, master_key: bytes):
 def get_auth(key: str):
     with open(root / "auth.json", "r") as file:
         auth = file.read()
-        auth_dict = json.loads(auth)
+        try:
+            auth_dict = json.loads(auth)
+        except json.JSONDecodeError as e:
+            raise SystemExit(f"failed to decode {root}/auth.json. Maybe it was tampered!")
 
     if key == "password_hash":
-        return auth_dict[key]
-
+        return auth_dict.get(key)
+            
     return base64.b64decode(auth_dict.get(key))
