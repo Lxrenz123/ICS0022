@@ -47,9 +47,9 @@ def authenticate():
         print("Invalid Hash, corrupted auth.json")
         raise SystemExit(1) from None
     except VerifyMismatchError:
-        print("Authentication failed")
+        print("Wrong password")
         raise SystemExit(1) from None
     except VerificationError:
-        print("Authentication failed")
+        print("Wrong password")
         raise SystemExit(1) from None
 

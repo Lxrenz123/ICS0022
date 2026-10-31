@@ -32,5 +32,3 @@ logger.addHandler(file_handler)
 
 
 
-# tests
-# logger.debug("hi")

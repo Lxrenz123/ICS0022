@@ -9,32 +9,46 @@ from .auth import derive_master_key
 import base64
 import secrets
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-
+from .purge import purge
 content = dict()
 ph = PasswordHasher()
 
 
 
 def init():
+    print(r"""
+   _____ _    _ _____  ______ _____  _      ____   _____ _  __
+  / ____| |  | |  __ \|  ____|  __ \| |    / __ \ / ____| |/ /
+ | (___ | |  | | |__) | |__  | |__) | |   | |  | | |    | ' / 
+  \___ \| |  | |  ___/|  __| |  _  /| |   | |  | | |    |  <
+  ____) | |__| | |    | |____| | \ \| |___| |__| | |____| . \
+ |_____/ \____/|_|    |______|_|  \_\______\____/ \_____|_|\_\
 
-    if (Path.home() / ".superlock").is_dir():
-        reset = input('SuperLock directory already exists in your home, do you want to reset? y/n: ')
-        if reset != "y":
-            return
-
+                  >>> Initializing Secure File Manager <<<
+""")
     try:
-        print("CTRL + C anytime to reset initialization and abort")
+        if (Path.home() / ".superlock").is_dir():
+            reset = input('SuperLock directory already exists in your home, do you want to reset? y/n: ')
+            if reset == "y":
+                purge()
+            else:
+                return
+
 
         
-
+        print("Press CTRL + C anytime to reset initialization and abort")
         master_pw = set_masterpw()
         root = create_superlock_root()
         setup_authjson(master_pw, root)
-
-        
-
     except KeyboardInterrupt:
-        print("Setup and Initialization aborted")
+        print("\n")
+        print("=" * 55)
+        print("  [!] SUPERLOCK INITIALIZATION ABORTED")
+        print("=" * 55)
+        print("  Setup interrupted by user (CTRL+C).")
+        print("  No further initialization will be performed.")
+        print("=" * 55)
+        print()
 
 
 
@@ -46,7 +60,7 @@ def create_superlock_root():
         Path.mkdir(superlock_dir / "vault", exist_ok=True)
         Path.mkdir(superlock_dir / "keys", exist_ok=True)
 
-        print(f"{superlock_dir} successfully created")
+        print(f"[+] {superlock_dir} successfully created")
     except FileExistsError:
         print(f"{superlock_dir} already exists, abort")
         exit()
@@ -60,7 +74,7 @@ def set_masterpw():
         master_pw_confirm = getpass(prompt="Confirm Master: ")
         if master_pw != master_pw_confirm:
             print("Passwords are different, please try again!")
-    print("Master password set up successful")
+    print("[+] Master password set up successful")
     return master_pw
 
 import json
