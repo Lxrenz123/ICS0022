@@ -36,8 +36,6 @@ def init():
                 purge()
             else:
                 return
-
-
         
         print("Press CTRL + C anytime to reset initialization and abort")
         master_pw = set_masterpw()
@@ -52,7 +50,7 @@ def init():
         print("  No further initialization will be performed.")
         print("=" * 55)
         print()
-
+    
 
 
 def create_superlock_root():
@@ -61,7 +59,6 @@ def create_superlock_root():
         Path.mkdir(superlock_dir, exist_ok=True)
 
         Path.mkdir(superlock_dir / "vault", exist_ok=True)
-
 
         print(f"[+] {superlock_dir} successfully created")
     except FileExistsError:

@@ -12,7 +12,10 @@ import hmac, hashlib
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 import hashlib
+from .log import logger
+import sys
 
+root = Path.home() /".superlock"
 
 content = {}
 
@@ -51,39 +54,31 @@ def serialize_auth_data(data: dict) -> bytes:
         sort_keys=True,
         separators=(",", ":"),
     ).encode("utf-8")
+
+
 def authenticate():
     from .crypto import get_auth
 
     master_pw = getpass()
 
-    master_key, salt= derive_master_key(master_pw, get_auth("kdf_salt"))
-
-    with open(Path.home() / ".superlock" / "auth.json", "rb") as f:
+    master_key, salt = derive_master_key(master_pw, get_auth("kdf_salt"))
+    with open(root / "auth.json", "rb") as f:
         content = json.loads(f.read())
     
     try:
         stored_tag = base64.b64decode(content.pop("hmac_tag"))
     except (KeyError, ValueError):
-        raise SystemExit("Wrong password or tampered auth.json")
+        logger.critical(f"missing hmac_tag in {root / "auth.json"}")
+        sys.exit(1)
+
+
+
 
     data = serialize_auth_data(content)
     tag = compute_auth_integrity_hmac(master_key, b"auth.json mac", data)
 
     if not hmac.compare_digest(tag, stored_tag):
-        raise SystemExit("Wrong password or tampered auth.json")
+        logger.error("Authentication failed")
+        sys.exit(1)
 
-    hashed_pw = get_auth("password_hash")
-
-    try:
-        if ph.verify(hashed_pw, master_pw):
-            return master_pw
-
-    except InvalidHashError:
-        print("Invalid Hash, corrupted auth.json")
-        raise SystemExit(1) from None
-    except VerifyMismatchError:
-        print("Wrong password")
-        raise SystemExit(1) from None
-    except VerificationError:
-        print("Wrong password")
-        raise SystemExit(1) from None
+    return master_pw

@@ -10,7 +10,8 @@ from pathlib import Path
 import base64
 from getpass import getpass
 from .auth import authenticate
-
+from .log import logger
+import sys
 
 root = Path.home() /".superlock"
 
@@ -30,7 +31,9 @@ def encrypt(path: str, name: str = None):
 
     index = decrypt_index(master_key)
     if name in index.values():
-        raise ValueError(f"A file with this name already exists in your vault: {name}")
+        logger.error("A file with this name already exists in your vault, please choose a different name!")
+        sys.exit(1)
+
 
     aad_header, key, file_nonce, file_id = generate_header(user_key)
 
@@ -38,7 +41,9 @@ def encrypt(path: str, name: str = None):
     try:
         fd = os.open(p, flags)
     except OSError:
-        raise ValueError("invalid path")
+        logger.error("Encryption failed: Invalid path")
+        sys.exit(1)
+
 
     with os.fdopen(fd, "rb") as file:
         data = file.read()
@@ -52,12 +57,9 @@ def encrypt(path: str, name: str = None):
 
 
     if not add_to_index({file_id: name}, master_key):
-        raise Exception("Failed to add to Index")
-    
-
-
-
-
+        logger.error("Encryption failed: failed to add file to Index")
+        sys.exit(1)
+    logger.info("Encryption succeeded")
 
 def get_user_key(master_key: bytes):
 
@@ -88,10 +90,10 @@ def generate_header(user_key):
 
    
     header_dict = {
-        "file_id": str(uuid.uuid4()),
-        "owner": os.getuid(),
-        "created": time.time(),
-        "algo": "AES-GCM-256",
+        "file_id": file_id,
+        "owner": owner,
+        "created": created,
+        "algo": algo,
         "wrap_nonce": base64.b64encode(wrap_nonce).decode(),
         "file_nonce": base64.b64encode(file_nonce).decode(),
         "wrapped_key": base64.b64encode(wrapped_key).decode(),
@@ -110,49 +112,61 @@ def decrypt(filename: str):
     user_key = get_user_key(master_key=master_key)
     filepath = lookup_index(filename, master_key)
 
+    full_file_path = Path(root / "vault" / filepath)
 
     with open(root / "vault" / filepath, "rb") as file:
-        data = file.read()
+        try:
+            data = file.read()
 
-        magic_end = len(MAGIC)
-        length_end = magic_end + LENGTH_SIZE
+            magic_end = len(MAGIC)
+            length_end = magic_end + LENGTH_SIZE
 
-        header_length = int.from_bytes(
-            data[magic_end:length_end]
-        )
+            header_length = int.from_bytes(
+                data[magic_end:length_end]
+            )
 
-        header_end = length_end + header_length
-
-        if header_end > len(data):
-            raise ValueError("Invalid header length")
+            header_end = length_end + header_length
 
 
-        header = data[:header_end]
-        header_json = json.loads(data[length_end:header_end].decode("utf-8"))
+            header = data[:header_end]
+            header_json = json.loads(data[length_end:header_end].decode("utf-8"))
+            file_id = header_json.get("file_id", file_id)
 
-        wrap_nonce = base64.b64decode(header_json["wrap_nonce"])
-        file_nonce = base64.b64decode(header_json["file_nonce"])
-        wrapped_key = base64.b64decode(header_json["wrapped_key"])
+            wrap_nonce = base64.b64decode(header_json["wrap_nonce"])
+            file_nonce = base64.b64decode(header_json["file_nonce"])
+            wrapped_key = base64.b64decode(header_json["wrapped_key"])
 
-        ciphertext = data[header_end:]
+            ciphertext = data[header_end:]
 
-        file_key = AESGCM(user_key).decrypt(
-            wrap_nonce,
-            wrapped_key,
-            None,
-        )
+            file_key = AESGCM(user_key).decrypt(
+                wrap_nonce,
+                wrapped_key,
+                None,
+            )
+        except UnicodeDecodeError:
+            logger.critical(
+                f"Decryption failed: Integrity verification failed! "
+                f"{full_file_path} was most likely tampered"
+            )
+            sys.exit(1)
         try:
             plain_bytes = AESGCM(file_key).decrypt(
                 file_nonce,
                 ciphertext,
                 header,
             )
+            print(plain_bytes)
         except exceptions.InvalidTag:
-            raise exceptions.InvalidTag(f"Integrity verifcation for file {filepath} ({filename}) FAILED ")
+            logger.critical(
+                f"Decryption failed: Integrity verification failed! "
+                f"{full_file_path} was most likely tampered"
+            )
+            sys.exit(1)
+        except Exception:
+            logger.error(f"Decryption failed")
+            sys.exit(1)
+        logger.info("Encryption succeeded")
         
-        print(plain_bytes)
-
-    
 
 def lookup_index(filename: str, master_key: bytes | None = None):
 
@@ -160,8 +174,9 @@ def lookup_index(filename: str, master_key: bytes | None = None):
     for uuid, filen in index.items():
         if filen == filename:
             return uuid + ".sl"
-    
-    raise Exception("File not found") 
+
+    logger.error("File not found!")
+    sys.exit(1)
 
 def decrypt_index(master_key= None):
 
@@ -174,7 +189,8 @@ def decrypt_index(master_key= None):
             index_enc = file.read()
             index_plain = AESGCM(user_key).decrypt(get_auth("nonce_index"),index_enc, None).decode()
     except exceptions.InvalidTag:
-        raise exceptions.InvalidTag(f"{root / "index.enc"} Integrity verification failed; cannot proceed")
+        logger.critical(f"Decryption of Index {root / "index.enc"}: Integrity verification failed!")
+        sys.exit(1)
         
     return json.loads(index_plain)
 
@@ -194,12 +210,6 @@ def ls_vault():
 
 def add_to_index(entry: dict, master_key):
     index = decrypt_index(master_key)
-    duplicate_names = set(entry.values()) & set(index.values())
-    if duplicate_names:
-        raise ValueError(
-            "A file with this name already exists in your vault: "
-            f"{next(iter(duplicate_names))}"
-        )
     index.update(entry)
 
     user_key = get_user_key(master_key)
@@ -225,7 +235,9 @@ def remove_from_index(filename: str, master_key: bytes):
         None,
     )
     if file_id is None:
-        raise FileNotFoundError(f"File not found in index: {filename}")
+        logger.error(f"File not found in index")
+        sys.exit(1)
+
 
     del index[file_id]
     user_key = get_user_key(master_key)
@@ -246,7 +258,8 @@ def get_auth(key: str):
         try:
             auth_dict = json.loads(auth)
         except json.JSONDecodeError as e:
-            raise SystemExit(f"failed to decode {root}/auth.json. Maybe it was tampered!")
+            logger.critical("Failed to read auth.json: Integrity verification failed!")
+            sys.exit(1)
 
     if key == "password_hash":
         return auth_dict.get(key)

@@ -1,7 +1,8 @@
 from .auth import authenticate, derive_master_key
 from .crypto import lookup_index, remove_from_index, get_auth
 from pathlib import Path
-
+from .log import logger
+import sys
 vault = Path.home() / ".superlock" / "vault"
 from .purge import overwrite_file
 
@@ -28,15 +29,15 @@ def delete(filename: str) -> bool:
     try:
         overwrite_file(vault_path)   
     except FileNotFoundError:
-        print("vault file was already missing; index entry removed")
-        return True
-    except OSError as e:
-        print(f"could not overwrite {filename}: {e}")
+        logger.error("File not found")
+        sys.exit(1)
+
 
     try:
         vault_path.unlink()
     except FileNotFoundError:
         pass
 
-    print(f"Deleted {filename}")
+    logger.info(f"Successfully deleted {filename[:1]}*****")
+    
     return True
