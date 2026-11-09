@@ -17,6 +17,7 @@ root = Path.home() /".superlock"
 
 MAGIC = bytes.fromhex("534C5631")
 LENGTH_SIZE = 4
+INDEX_NONCE_SIZE = 12
 
 def encrypt(path: str, name: str = None):
 
@@ -130,7 +131,6 @@ def decrypt(filename: str):
 
             header = data[:header_end]
             header_json = json.loads(data[length_end:header_end].decode("utf-8"))
-            file_id = header_json.get("file_id", file_id)
 
             wrap_nonce = base64.b64decode(header_json["wrap_nonce"])
             file_nonce = base64.b64decode(header_json["file_nonce"])
@@ -187,7 +187,9 @@ def decrypt_index(master_key= None):
     try:
         with open(root / "index.enc", "rb") as file:
             index_enc = file.read()
-            index_plain = AESGCM(user_key).decrypt(get_auth("nonce_index"),index_enc, None).decode()
+            nonce = index_enc[:INDEX_NONCE_SIZE]
+            ciphertext = index_enc[INDEX_NONCE_SIZE:]
+            index_plain = AESGCM(user_key).decrypt(nonce, ciphertext, None).decode()
     except exceptions.InvalidTag:
         logger.critical(f"Decryption of Index {root / "index.enc"}: Integrity verification failed!")
         sys.exit(1)
@@ -213,7 +215,7 @@ def add_to_index(entry: dict, master_key):
     index.update(entry)
 
     user_key = get_user_key(master_key)
-    nonce = get_auth("nonce_index")
+    nonce = os.urandom(INDEX_NONCE_SIZE)
 
     index_enc = AESGCM(user_key).encrypt(
         nonce,
@@ -222,7 +224,7 @@ def add_to_index(entry: dict, master_key):
     )
 
     with open(root / "index.enc", "wb") as file:
-        file.write(index_enc)
+        file.write(nonce + index_enc)
 
     return True
 
@@ -241,7 +243,7 @@ def remove_from_index(filename: str, master_key: bytes):
 
     del index[file_id]
     user_key = get_user_key(master_key)
-    nonce = get_auth("nonce_index")
+    nonce = os.urandom(INDEX_NONCE_SIZE)
     index_enc = AESGCM(user_key).encrypt(
         nonce,
         json.dumps(index).encode(),
@@ -249,7 +251,7 @@ def remove_from_index(filename: str, master_key: bytes):
     )
 
     with open(root / "index.enc", "wb") as file:
-        file.write(index_enc)
+        file.write(nonce + index_enc)
 
 
 def get_auth(key: str):

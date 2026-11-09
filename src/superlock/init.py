@@ -10,9 +10,9 @@ import base64
 import secrets
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from .purge import purge
-import hmac
 from .auth import compute_auth_integrity_hmac, serialize_auth_data
-
+import sys
+import json
 content = dict()
 ph = PasswordHasher()
 
@@ -41,6 +41,8 @@ def init():
         master_pw = set_masterpw()
         root = create_superlock_root()
         setup_authjson(master_pw, root)
+    
+
     except KeyboardInterrupt:
         print("\n")
         print("=" * 55)
@@ -63,31 +65,23 @@ def create_superlock_root():
         print(f"[+] {superlock_dir} successfully created")
     except FileExistsError:
         print(f"{superlock_dir} already exists, abort")
-        exit()
+        sys.exit(1)
     return superlock_dir
 
 def set_masterpw():
     master_pw = ""
     master_pw_confirm = ""
-    while master_pw != master_pw_confirm or len(master_pw) == 0 or len(master_pw_confirm) == 0:
+    while master_pw != master_pw_confirm or len(master_pw) == 0 or len(master_pw_confirm) == 0 or not len(master_pw) >= 8:
+        print("-- Please setup your master password --")
         master_pw = getpass(prompt="Master Password: ")
         master_pw_confirm = getpass(prompt="Confirm Master: ")
         if master_pw != master_pw_confirm:
             print("Passwords are different, please try again!")
+        elif len(master_pw) < 8:
+            print("Minimum password length is 8, please try again")
     print("[+] Master password set up successful")
     return master_pw
 
-import json
-
-def gen_user_key_wrapped(master_key: bytes):
-
-    user_key = secrets.token_bytes(32)
-
-    nonce = os.urandom(12)
-
-    user_key_enc = AESGCM(master_key).encrypt(nonce, user_key, None)
-
-    return base64.b64encode(user_key_enc).decode(), base64.b64encode(nonce).decode()
 
 
 
@@ -100,35 +94,61 @@ def setup_authjson(master_pw: str, root: Path) -> bool:
     user_key_wrapped, salt_user_key = gen_user_key_wrapped(master_key)
     content["wrapped_user_key"] = user_key_wrapped
     content["user_key_nonce"] =  salt_user_key
-    content["nonce_index"] = base64.b64encode(os.urandom(12)).decode()
     data = serialize_auth_data(content)
     content["hmac_tag"] = base64.b64encode(
         compute_auth_integrity_hmac(master_key, b"auth.json mac", data)
     ).decode()
-    with open(root / "auth.json", "wb") as file:
-        file.write(serialize_auth_data(content))
+    fd = os.open(root / "auth.json", os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+            0o600,)
 
-    create_index(master_pw)
+    with os.fdopen(fd, "wb") as f:
+        f.write(serialize_auth_data(content))
+        f.flush()
+        os.fsync(f.fileno())
+
+    create_index(master_pw, root)
 
     return True
 
 
-def create_index(master_pw: str):
 
-    with open(Path.home() / ".superlock" / "auth.json", "r") as file:
-        auth = file.read()
-        auth = json.loads(auth)
+def gen_user_key_wrapped(master_key: bytes):
+
+    user_key = secrets.token_bytes(32)
+
+    nonce = os.urandom(12)
+
+    user_key_enc = AESGCM(master_key).encrypt(nonce, user_key, None)
+
+    return base64.b64encode(user_key_enc).decode(), base64.b64encode(nonce).decode()
 
 
-    key, salt = derive_master_key(master_pw, get_auth("kdf_salt"))
-    user_key = get_user_key(key)
-    nonce = get_auth("nonce_index")
+def create_index(master_pw: str, root: Path):
+    try:
+        flags = (os.O_RDONLY
+         | getattr(os, "O_NOFOLLOW", 0)
+         | getattr(os, "O_NONBLOCK", 0)
+         | getattr(os, "O_CLOEXEC", 0)
+         | getattr(os, "O_BINARY", 0))
+        fd = os.open(root / "auth.json", flags)
 
-    index = json.dumps({}).encode()
+        with os.fdopen(fd, "r") as file:
+            auth = file.read()
+            auth = json.loads(auth)
 
-    with open(Path.home() / ".superlock" / "index.enc", "wb") as file:
-        enc = AESGCM(user_key).encrypt(nonce,index, None)
-        file.write(enc)
-    
 
-        
+        key, salt = derive_master_key(master_pw, get_auth("kdf_salt"))
+        user_key = get_user_key(key)
+        nonce = os.urandom(12)
+
+        index = json.dumps({}).encode()
+
+        fd = os.open(root / "index.enc", os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                0o600,)
+
+        with os.fdopen(fd, "wb") as file:
+            enc = AESGCM(user_key).encrypt(nonce,index, None)
+            file.write(nonce + enc)
+    except Exception:
+        print("Error")
+        sys.exit(1)
