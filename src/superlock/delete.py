@@ -25,7 +25,6 @@ def delete(filename: str) -> bool:
 
     remove_from_index(filename, master_key)
 
-
     try:
         overwrite_file(vault_path)   
     except FileNotFoundError:
@@ -38,6 +37,6 @@ def delete(filename: str) -> bool:
     except FileNotFoundError:
         pass
 
-    logger.info(f"Successfully deleted {filename[:1]}*****")
+    logger.info(f"Successfully deleted")
     
     return True

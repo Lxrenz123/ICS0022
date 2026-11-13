@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 from cryptography.hazmat.primitives.kdf.argon2 import Argon2id
 from argon2 import PasswordHasher
-from .crypto import get_user_key, get_auth
+from .crypto import get_kek, get_auth
 from .auth import derive_master_key
 import base64
 import secrets
@@ -60,7 +60,7 @@ def create_superlock_root():
         superlock_dir = Path.home() / ".superlock"
         Path.mkdir(superlock_dir, exist_ok=True)
 
-        Path.mkdir(superlock_dir / "vault", exist_ok=True)
+        Path.mkdir(superlock_dir / "vault", exist_ok=True, mode=0o700)
 
         print(f"[+] {superlock_dir} successfully created")
     except FileExistsError:
@@ -71,7 +71,7 @@ def create_superlock_root():
 def set_masterpw():
     master_pw = ""
     master_pw_confirm = ""
-    while master_pw != master_pw_confirm or len(master_pw) == 0 or len(master_pw_confirm) == 0 or not len(master_pw) >= 8:
+    while master_pw != master_pw_confirm or len(master_pw) == 0:
         print("-- Please setup your master password --")
         master_pw = getpass(prompt="Master Password: ")
         master_pw_confirm = getpass(prompt="Confirm Master: ")
@@ -91,9 +91,9 @@ def setup_authjson(master_pw: str, root: Path) -> bool:
     content["kdf_salt"] = salt_master_key
 
 
-    user_key_wrapped, salt_user_key = gen_user_key_wrapped(master_key)
-    content["wrapped_user_key"] = user_key_wrapped
-    content["user_key_nonce"] =  salt_user_key
+    kek_wrapped, salt_kek = gen_kek_wrapped(master_key)
+    content["wrapped_kek"] = kek_wrapped
+    content["kek_salt"] =  salt_kek
     data = serialize_auth_data(content)
     content["hmac_tag"] = base64.b64encode(
         compute_auth_integrity_hmac(master_key, b"auth.json mac", data)
@@ -112,15 +112,15 @@ def setup_authjson(master_pw: str, root: Path) -> bool:
 
 
 
-def gen_user_key_wrapped(master_key: bytes):
+def gen_kek_wrapped(master_key: bytes):
 
-    user_key = secrets.token_bytes(32)
+    kek = secrets.token_bytes(32)
 
     nonce = os.urandom(12)
 
-    user_key_enc = AESGCM(master_key).encrypt(nonce, user_key, None)
+    kek_enc = AESGCM(master_key).encrypt(nonce, kek, None)
 
-    return base64.b64encode(user_key_enc).decode(), base64.b64encode(nonce).decode()
+    return base64.b64encode(kek_enc).decode(), base64.b64encode(nonce).decode()
 
 
 def create_index(master_pw: str, root: Path):
@@ -138,7 +138,7 @@ def create_index(master_pw: str, root: Path):
 
 
         key, salt = derive_master_key(master_pw, get_auth("kdf_salt"))
-        user_key = get_user_key(key)
+        kek = get_kek(key)
         nonce = os.urandom(12)
 
         index = json.dumps({}).encode()
@@ -147,7 +147,7 @@ def create_index(master_pw: str, root: Path):
                 0o600,)
 
         with os.fdopen(fd, "wb") as file:
-            enc = AESGCM(user_key).encrypt(nonce,index, None)
+            enc = AESGCM(kek).encrypt(nonce,index, None)
             file.write(nonce + enc)
     except Exception:
         print("Error")

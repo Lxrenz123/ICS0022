@@ -1,5 +1,6 @@
 import logging
 from pathlib import Path
+import os
 
 root = Path.home() / ".superlock"
 
@@ -25,6 +26,7 @@ console_handler.setFormatter(console_format)
 # File Handler
 if root.exists(follow_symlinks=False):
         file_handler = logging.FileHandler(filename=f"{Path.home() / ".superlock" / "logs.txt"}", mode="a", encoding="utf-8")
+        os.chmod(Path.home() / ".superlock" / "logs.txt", 0o600)
         file_handler.setFormatter(file_format)
         file_handler.setLevel(logging.INFO)
         logger.addHandler(file_handler)

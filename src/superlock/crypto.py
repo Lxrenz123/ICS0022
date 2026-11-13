@@ -12,6 +12,9 @@ from getpass import getpass
 from .auth import authenticate
 from .log import logger
 import sys
+import resource
+
+resource.setrlimit(resource.RLIMIT_CORE, (0, 0)) # prevent core dumps 
 
 root = Path.home() /".superlock"
 
@@ -24,7 +27,7 @@ def encrypt(path: str, name: str = None):
 
     master_key, salt = derive_master_key(authenticate(), get_auth("kdf_salt"))
 
-    user_key = get_user_key(master_key)
+    kek = get_kek(master_key)
 
     p = Path(path).expanduser()
     if not name:
@@ -36,11 +39,12 @@ def encrypt(path: str, name: str = None):
         sys.exit(1)
 
 
-    aad_header, key, file_nonce, file_id = generate_header(user_key)
+    aad_header, key, file_nonce, file_id = generate_header(kek)
 
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_BINARY", 0)
     try:
-        fd = os.open(p, flags)
+        fd = os.open(p, flags, 0o600)
+        os.fchmod(fd, 0o600)
     except OSError:
         logger.error("Encryption failed: Invalid path")
         sys.exit(1)
@@ -52,7 +56,17 @@ def encrypt(path: str, name: str = None):
 
     ct = AESGCM(key).encrypt(file_nonce, data, aad_header)
 
-    with open(root / f"vault/{file_id}.sl" ,"wb") as file:
+    encrypted_path = root / "vault" / f"{file_id}.sl"
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+
+    try:
+        fd = os.open(encrypted_path, flags, 0o600)
+        os.fchmod(fd, 0o600)
+    except OSError:
+        logger.error("Encryption failed: unable to create vault file")
+        sys.exit(1)
+
+    with os.fdopen(fd, "wb") as file:
         file.write(aad_header)
         file.write(ct)
 
@@ -62,20 +76,20 @@ def encrypt(path: str, name: str = None):
         sys.exit(1)
     logger.info("Encryption succeeded")
 
-def get_user_key(master_key: bytes):
+def get_kek(master_key: bytes):
 
-    get_auth("wrapped_user_key")
+    get_auth("wrapped_kek")
 
-    user_key_enc = get_auth("wrapped_user_key")
-    user_key_nonce = get_auth("user_key_nonce")
+    kek_enc = get_auth("wrapped_kek")
+    kek_salt = get_auth("kek_salt")
 
-    user_key = AESGCM(master_key).decrypt(user_key_nonce, user_key_enc, None)
+    kek = AESGCM(master_key).decrypt(kek_salt, kek_enc, None)
 
-    return user_key
+    return kek
 
 
 
-def generate_header(user_key):
+def generate_header(kek):
     header = list()
     header.append(MAGIC)
 
@@ -87,7 +101,7 @@ def generate_header(user_key):
     owner = os.getuid()
     created = time.time()
     algo = "AES-GCM-256"
-    wrapped_key = AESGCM(user_key).encrypt(nonce=wrap_nonce, data=key, associated_data=None)
+    wrapped_key = AESGCM(kek).encrypt(nonce=wrap_nonce, data=key, associated_data=None)
 
    
     header_dict = {
@@ -110,7 +124,7 @@ def generate_header(user_key):
 def decrypt(filename: str):
 
     master_key, salt = derive_master_key(authenticate(), get_auth("kdf_salt"))
-    user_key = get_user_key(master_key=master_key)
+    kek = get_kek(master_key=master_key)
     filepath = lookup_index(filename, master_key)
 
     full_file_path = Path(root / "vault" / filepath)
@@ -138,7 +152,7 @@ def decrypt(filename: str):
 
             ciphertext = data[header_end:]
 
-            file_key = AESGCM(user_key).decrypt(
+            file_key = AESGCM(kek).decrypt(
                 wrap_nonce,
                 wrapped_key,
                 None,
@@ -183,13 +197,13 @@ def decrypt_index(master_key= None):
     if not master_key:
         master_key, salt = derive_master_key(authenticate(), get_auth("kdf_salt"))
 
-    user_key = get_user_key(master_key)
+    kek = get_kek(master_key)
     try:
         with open(root / "index.enc", "rb") as file:
             index_enc = file.read()
             nonce = index_enc[:INDEX_NONCE_SIZE]
             ciphertext = index_enc[INDEX_NONCE_SIZE:]
-            index_plain = AESGCM(user_key).decrypt(nonce, ciphertext, None).decode()
+            index_plain = AESGCM(kek).decrypt(nonce, ciphertext, None).decode()
     except exceptions.InvalidTag:
         logger.critical(f"Decryption of Index {root / "index.enc"}: Integrity verification failed!")
         sys.exit(1)
@@ -214,10 +228,10 @@ def add_to_index(entry: dict, master_key):
     index = decrypt_index(master_key)
     index.update(entry)
 
-    user_key = get_user_key(master_key)
+    kek = get_kek(master_key)
     nonce = os.urandom(INDEX_NONCE_SIZE)
 
-    index_enc = AESGCM(user_key).encrypt(
+    index_enc = AESGCM(kek).encrypt(
         nonce,
         json.dumps(index).encode(),
         None,
@@ -242,9 +256,9 @@ def remove_from_index(filename: str, master_key: bytes):
 
 
     del index[file_id]
-    user_key = get_user_key(master_key)
+    kek = get_kek(master_key)
     nonce = os.urandom(INDEX_NONCE_SIZE)
-    index_enc = AESGCM(user_key).encrypt(
+    index_enc = AESGCM(kek).encrypt(
         nonce,
         json.dumps(index).encode(),
         None,

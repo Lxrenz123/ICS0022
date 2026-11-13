@@ -11,7 +11,6 @@ def overwrite_file(path: Path):
     st = path.lstat()
     if not stat.S_ISREG(st.st_mode):
         return
-    os.chmod(path, 0o600)
     flags = os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_BINARY", 0)
     fd = os.open(path, flags)
     try:
