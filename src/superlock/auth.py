@@ -2,12 +2,9 @@ from pathlib import Path
 import json
 from argon2 import PasswordHasher
 from cryptography.hazmat.primitives.kdf.argon2 import Argon2id
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 import base64
 import os, json
-import secrets
 from getpass import getpass
-from argon2.exceptions import VerificationError, VerifyMismatchError, InvalidHashError
 import hmac, hashlib
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF

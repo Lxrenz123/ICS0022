@@ -1,8 +1,6 @@
-#import argon2-cffi
 from getpass import getpass
 import os
 from pathlib import Path
-from cryptography.hazmat.primitives.kdf.argon2 import Argon2id
 from argon2 import PasswordHasher
 from .crypto import get_kek, get_auth
 from .auth import derive_master_key

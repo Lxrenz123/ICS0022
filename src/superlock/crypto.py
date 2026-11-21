@@ -1,6 +1,5 @@
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography import exceptions
-import secrets
 import uuid
 import json
 import binascii
@@ -10,7 +9,6 @@ import time
 from .auth import derive_master_key
 from pathlib import Path
 import base64
-from getpass import getpass
 from .auth import authenticate
 from .log import logger
 import sys
