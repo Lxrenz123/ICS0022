@@ -58,9 +58,12 @@ def serialize_auth_data(data: dict) -> bytes:
 
 def authenticate():
     from .crypto import get_auth
-
-    master_pw = getpass()
-
+    try:
+        master_pw = getpass()
+    except KeyboardInterrupt:
+        print("\n")
+        print("Aborted")
+        sys.exit(1)
     master_key, salt = derive_master_key(master_pw, get_auth("kdf_salt"))
     with open(root / "auth.json", "rb") as f:
         content = json.loads(f.read())
@@ -70,9 +73,6 @@ def authenticate():
     except (KeyError, ValueError):
         logger.critical(f"missing hmac_tag in {root / "auth.json"}")
         sys.exit(1)
-
-
-
 
     data = serialize_auth_data(content)
     tag = compute_auth_integrity_hmac(master_key, b"auth.json mac", data)

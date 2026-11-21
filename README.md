@@ -61,9 +61,16 @@ Name is optional, by default it equals filename
 ### Decrypt a file
 
 ```bash
-superlock decrypt <file.sl>
+superlock decrypt <stored-name>
 ```
-Decrypts a SuperLock file after successful integrity verification.
+Recovers the original file after successful integrity verification. By default,
+the recovered file is written to the current directory using its stored name.
+
+To write decrypted bytes directly to stdout:
+
+```bash
+superlock decrypt <stored-name> --stdout
+```
 
 
 ### List stored files

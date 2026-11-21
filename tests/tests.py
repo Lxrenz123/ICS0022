@@ -2,8 +2,6 @@
 Covers: encryption/decryption correctness, secure deletion, authentication failure
 paths, input-validation edge cases. Run: pytest -v
 """
-import ast
-import importlib
 import json
 import os
 from pathlib import Path
@@ -38,8 +36,7 @@ def make_file(env, name="plain.txt", content=MARKER):
 
 def decrypted(name, capsys):
     capsys.readouterr()
-    crypto.decrypt(name)
-    return ast.literal_eval(capsys.readouterr().out.strip().splitlines()[-1])
+    return crypto.decrypt(name, output_path=Path("/tmp") / "unused-decrypted-name")
 
 
 def vault_files(env):
@@ -61,6 +58,16 @@ def test_vault_file_does_not_contain_plaintext(env):
     crypto.encrypt(str(make_file(env)))
     (blob,) = vault_files(env)
     assert MARKER not in blob.read_bytes()
+
+
+def test_decrypt_recovers_original_file(env):
+    src = make_file(env, content=b"recovered contents")
+    crypto.encrypt(str(src), "recovered.txt")
+
+    recovered = env.home / "restored.txt"
+    crypto.decrypt("recovered.txt", output_path=recovered)
+
+    assert recovered.read_bytes() == b"recovered contents"
 
 
 @pytest.mark.parametrize("pos", [0, 8, 24, -1, -16])

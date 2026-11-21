@@ -14,3 +14,6 @@ dependencies = [
 
 [project.scripts]
 superlock = "superlock.main:main"
+
+[tool.pytest.ini_options]
+python_files = ["tests.py", "test_*.py"]

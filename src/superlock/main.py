@@ -5,6 +5,10 @@ def main():
     from .delete import delete
     from .purge import purge
     from pathlib import Path
+    import resource
+
+    resource.setrlimit(resource.RLIMIT_CORE, (0, 0)) # prevent core dumps 
+
     # parser + sub parser for command(encrypt,decrypt,init,delete)
     parser = argparse.ArgumentParser(prog="superlock")
     sub = parser.add_subparsers(dest="action", required=True)
@@ -48,7 +52,7 @@ def main():
         if args.action == "encrypt":
             encrypt(args.path, args.name)
         elif args.action == "decrypt":
-            decrypt(args.filename)
+            decrypt(args.filename, stdout=args.stdout)
         elif args.action == "list":
             ls_vault()
         elif args.action == "delete":

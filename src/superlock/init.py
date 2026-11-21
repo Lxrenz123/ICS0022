@@ -86,6 +86,7 @@ def set_masterpw():
 
 
 def setup_authjson(master_pw: str, root: Path) -> bool:
+    content = {}
     content["password_hash"] = ph.hash(master_pw)
     master_key, salt_master_key = derive_master_key(master_pw)
     content["kdf_salt"] = salt_master_key

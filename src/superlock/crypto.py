@@ -3,7 +3,9 @@ from cryptography import exceptions
 import secrets
 import uuid
 import json
+import binascii
 import os
+import stat
 import time
 from .auth import derive_master_key
 from pathlib import Path
@@ -12,9 +14,6 @@ from getpass import getpass
 from .auth import authenticate
 from .log import logger
 import sys
-import resource
-
-resource.setrlimit(resource.RLIMIT_CORE, (0, 0)) # prevent core dumps 
 
 root = Path.home() /".superlock"
 
@@ -45,6 +44,9 @@ def encrypt(path: str, name: str = None):
     try:
         fd = os.open(p, flags, 0o600)
         os.fchmod(fd, 0o600)
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            os.close(fd)
+            raise OSError("input is not a regular file")
     except OSError:
         logger.error("Encryption failed: Invalid path")
         sys.exit(1)
@@ -121,7 +123,7 @@ def generate_header(kek):
     return b"".join(header), key, file_nonce, file_id
 
 
-def decrypt(filename: str):
+def decrypt(filename: str, stdout: bool = False, output_path: str | os.PathLike | None = None):
 
     master_key, salt = derive_master_key(authenticate(), get_auth("kdf_salt"))
     kek = get_kek(master_key=master_key)
@@ -129,7 +131,15 @@ def decrypt(filename: str):
 
     full_file_path = Path(root / "vault" / filepath)
 
-    with open(root / "vault" / filepath, "rb") as file:
+    vault_path = root / "vault" / filepath
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_BINARY", 0)
+    try:
+        fd = os.open(vault_path, flags)
+    except OSError:
+        logger.error("Decryption failed: Invalid vault file")
+        sys.exit(1)
+
+    with os.fdopen(fd, "rb") as file:
         try:
             data = file.read()
 
@@ -157,7 +167,7 @@ def decrypt(filename: str):
                 wrapped_key,
                 None,
             )
-        except UnicodeDecodeError:
+        except (UnicodeDecodeError, json.JSONDecodeError, KeyError, ValueError, binascii.Error):
             logger.critical(
                 f"Decryption failed: Integrity verification failed! "
                 f"{full_file_path} was most likely tampered"
@@ -169,7 +179,6 @@ def decrypt(filename: str):
                 ciphertext,
                 header,
             )
-            print(plain_bytes)
         except exceptions.InvalidTag:
             logger.critical(
                 f"Decryption failed: Integrity verification failed! "
@@ -179,7 +188,37 @@ def decrypt(filename: str):
         except Exception:
             logger.error(f"Decryption failed")
             sys.exit(1)
-        logger.info("Encryption succeeded")
+
+        if stdout:
+            if hasattr(sys.stdout, "buffer"):
+                sys.stdout.buffer.write(plain_bytes)
+            else:
+                sys.stdout.write(plain_bytes.decode("utf-8", errors="surrogateescape"))
+            sys.stdout.flush()
+        else:
+            destination = (
+                Path(output_path).expanduser()
+                if output_path is not None
+                else Path.cwd() / Path(filename).name
+            )
+            flags = (
+                os.O_WRONLY
+                | os.O_CREAT
+                | os.O_TRUNC
+                | getattr(os, "O_NOFOLLOW", 0)
+                | getattr(os, "O_BINARY", 0)
+            )
+            try:
+                fd = os.open(destination, flags, 0o600)
+                os.fchmod(fd, 0o600)
+                with os.fdopen(fd, "wb") as recovered:
+                    recovered.write(plain_bytes)
+            except OSError:
+                logger.error("Decryption failed: unable to write recovered file")
+                sys.exit(1)
+
+        logger.info("Decryption succeeded")
+        return plain_bytes
         
 
 def lookup_index(filename: str, master_key: bytes | None = None):
@@ -199,11 +238,17 @@ def decrypt_index(master_key= None):
 
     kek = get_kek(master_key)
     try:
-        with open(root / "index.enc", "rb") as file:
+        index_path = root / "index.enc"
+        flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_BINARY", 0)
+        fd = os.open(index_path, flags)
+        with os.fdopen(fd, "rb") as file:
             index_enc = file.read()
             nonce = index_enc[:INDEX_NONCE_SIZE]
             ciphertext = index_enc[INDEX_NONCE_SIZE:]
             index_plain = AESGCM(kek).decrypt(nonce, ciphertext, None).decode()
+    except OSError:
+        logger.error("Decryption failed: Invalid index file")
+        sys.exit(1)
     except exceptions.InvalidTag:
         logger.critical(f"Decryption of Index {root / "index.enc"}: Integrity verification failed!")
         sys.exit(1)
@@ -237,7 +282,22 @@ def add_to_index(entry: dict, master_key):
         None,
     )
 
-    with open(root / "index.enc", "wb") as file:
+    index_path = root / "index.enc"
+    flags = (
+        os.O_WRONLY
+        | os.O_CREAT
+        | os.O_TRUNC
+        | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_BINARY", 0)
+    )
+    try:
+        fd = os.open(index_path, flags, 0o600)
+        os.fchmod(fd, 0o600)
+    except OSError:
+        logger.error("Encryption failed: unable to write index file")
+        sys.exit(1)
+
+    with os.fdopen(fd, "wb") as file:
         file.write(nonce + index_enc)
 
     return True
@@ -264,9 +324,23 @@ def remove_from_index(filename: str, master_key: bytes):
         None,
     )
 
-    with open(root / "index.enc", "wb") as file:
-        file.write(nonce + index_enc)
+    index_path = root / "index.enc"
+    flags = (
+        os.O_WRONLY
+        | os.O_CREAT
+        | os.O_TRUNC
+        | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_BINARY", 0)
+    )
+    try:
+        fd = os.open(index_path, flags, 0o600)
+        os.fchmod(fd, 0o600)
+    except OSError:
+        logger.error("Failed to write index file")
+        sys.exit(1)
 
+    with os.fdopen(fd, "wb") as file:
+        file.write(nonce + index_enc)
 
 def get_auth(key: str):
     with open(root / "auth.json", "r") as file:
