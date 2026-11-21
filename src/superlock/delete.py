@@ -8,7 +8,7 @@ from .purge import overwrite_file
 
 
 def delete(filename: str) -> bool:
-    master_key, salt = derive_master_key(authenticate(), get_auth("kdf_salt"))
+    master_key, _ = derive_master_key(authenticate(), get_auth("kdf_salt"))
 
     filepath = lookup_index(filename, master_key)
     if filepath is None:
@@ -37,6 +37,6 @@ def delete(filename: str) -> bool:
     except FileNotFoundError:
         pass
 
-    logger.info(f"Successfully deleted")
+    logger.info("Successfully deleted")
     
     return True

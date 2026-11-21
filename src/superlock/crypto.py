@@ -2,7 +2,6 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography import exceptions
 import uuid
 import json
-import binascii
 import os
 import stat
 import time
@@ -19,10 +18,12 @@ MAGIC = bytes.fromhex("534C5631")
 LENGTH_SIZE = 4
 INDEX_NONCE_SIZE = 12
 
+INDEX = root / "index.enc"
+
 def encrypt(path: str, name: str = None):
 
 
-    master_key, salt = derive_master_key(authenticate(), get_auth("kdf_salt"))
+    master_key, _ = derive_master_key(authenticate(), get_auth("kdf_salt"))
 
     kek = get_kek(master_key)
 
@@ -90,7 +91,7 @@ def get_kek(master_key: bytes):
 
 
 def generate_header(kek):
-    header = list()
+    header = []
     header.append(MAGIC)
 
     key = AESGCM.generate_key(bit_length=256)
@@ -123,7 +124,7 @@ def generate_header(kek):
 
 def decrypt(filename: str, stdout: bool = False, output_path: str | os.PathLike | None = None):
 
-    master_key, salt = derive_master_key(authenticate(), get_auth("kdf_salt"))
+    master_key, _ = derive_master_key(authenticate(), get_auth("kdf_salt"))
     kek = get_kek(master_key=master_key)
     filepath = lookup_index(filename, master_key)
 
@@ -165,7 +166,7 @@ def decrypt(filename: str, stdout: bool = False, output_path: str | os.PathLike 
                 wrapped_key,
                 None,
             )
-        except (UnicodeDecodeError, json.JSONDecodeError, KeyError, ValueError, binascii.Error):
+        except (KeyError, ValueError):
             logger.critical(
                 f"Decryption failed: Integrity verification failed! "
                 f"{full_file_path} was most likely tampered"
@@ -184,7 +185,7 @@ def decrypt(filename: str, stdout: bool = False, output_path: str | os.PathLike 
             )
             sys.exit(1)
         except Exception:
-            logger.error(f"Decryption failed")
+            logger.error("Decryption failed")
             sys.exit(1)
 
         if stdout:
@@ -232,13 +233,13 @@ def lookup_index(filename: str, master_key: bytes | None = None):
 def decrypt_index(master_key= None):
 
     if not master_key:
-        master_key, salt = derive_master_key(authenticate(), get_auth("kdf_salt"))
+        master_key, _ = derive_master_key(authenticate(), get_auth("kdf_salt"))
 
     kek = get_kek(master_key)
     try:
-        index_path = root / "index.enc"
+
         flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_BINARY", 0)
-        fd = os.open(index_path, flags)
+        fd = os.open(INDEX, flags)
         with os.fdopen(fd, "rb") as file:
             index_enc = file.read()
             nonce = index_enc[:INDEX_NONCE_SIZE]
@@ -248,7 +249,7 @@ def decrypt_index(master_key= None):
         logger.error("Decryption failed: Invalid index file")
         sys.exit(1)
     except exceptions.InvalidTag:
-        logger.critical(f"Decryption of Index {root / "index.enc"}: Integrity verification failed!")
+        logger.critical(f"Decryption of Index {INDEX}: Integrity verification failed!")
         sys.exit(1)
         
     return json.loads(index_plain)
@@ -280,7 +281,7 @@ def add_to_index(entry: dict, master_key):
         None,
     )
 
-    index_path = root / "index.enc"
+
     flags = (
         os.O_WRONLY
         | os.O_CREAT
@@ -289,7 +290,7 @@ def add_to_index(entry: dict, master_key):
         | getattr(os, "O_BINARY", 0)
     )
     try:
-        fd = os.open(index_path, flags, 0o600)
+        fd = os.open(INDEX, flags, 0o600)
         os.fchmod(fd, 0o600)
     except OSError:
         logger.error("Encryption failed: unable to write index file")
@@ -309,7 +310,7 @@ def remove_from_index(filename: str, master_key: bytes):
         None,
     )
     if file_id is None:
-        logger.error(f"File not found in index")
+        logger.error("File not found in index")
         sys.exit(1)
 
 
@@ -322,7 +323,7 @@ def remove_from_index(filename: str, master_key: bytes):
         None,
     )
 
-    index_path = root / "index.enc"
+
     flags = (
         os.O_WRONLY
         | os.O_CREAT
@@ -331,7 +332,7 @@ def remove_from_index(filename: str, master_key: bytes):
         | getattr(os, "O_BINARY", 0)
     )
     try:
-        fd = os.open(index_path, flags, 0o600)
+        fd = os.open(INDEX, flags, 0o600)
         os.fchmod(fd, 0o600)
     except OSError:
         logger.error("Failed to write index file")
@@ -345,7 +346,7 @@ def get_auth(key: str):
         auth = file.read()
         try:
             auth_dict = json.loads(auth)
-        except json.JSONDecodeError as e:
+        except json.JSONDecodeError:
             logger.critical("Failed to read auth.json: Integrity verification failed!")
             sys.exit(1)
 

@@ -11,7 +11,7 @@ from .purge import purge
 from .auth import compute_auth_integrity_hmac, serialize_auth_data
 import sys
 import json
-content = dict()
+content = {}
 ph = PasswordHasher()
 
 
@@ -136,7 +136,7 @@ def create_index(master_pw: str, root: Path):
             auth = json.loads(auth)
 
 
-        key, salt = derive_master_key(master_pw, get_auth("kdf_salt"))
+        key, _ = derive_master_key(master_pw, get_auth("kdf_salt"))
         kek = get_kek(key)
         nonce = os.urandom(12)
 

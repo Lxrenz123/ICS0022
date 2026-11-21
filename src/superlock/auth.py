@@ -61,7 +61,7 @@ def authenticate():
         print("\n")
         print("Aborted")
         sys.exit(1)
-    master_key, salt = derive_master_key(master_pw, get_auth("kdf_salt"))
+    master_key, _ = derive_master_key(master_pw, get_auth("kdf_salt"))
     with open(root / "auth.json", "rb") as f:
         content = json.loads(f.read())
     
