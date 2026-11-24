@@ -5,6 +5,7 @@ def main():
     from .delete import delete
     from .purge import purge
     from pathlib import Path
+    import sys
     import resource
 
     resource.setrlimit(resource.RLIMIT_CORE, (0, 0)) # prevent core dumps 
@@ -42,23 +43,26 @@ def main():
     delete_parser.add_argument("filename", help="filename of the file to delete from the vault")
 
     args = parser.parse_args()
-
-    if args.action == "init":
-        init()
-    else:
-        if not (Path.home() / ".superlock").is_dir():
-            print("SuperLock has not been initialized: superlock init")
-            return
-        if args.action == "encrypt":
-            encrypt(args.path, args.name)
-        elif args.action == "decrypt":
-            decrypt(args.filename, stdout=args.stdout)
-        elif args.action == "list":
-            ls_vault()
-        elif args.action == "delete":
-            delete(args.filename)
-        elif args.action == "purge":
-            purge()
+    try:
+        if args.action == "init":
+            init()
+        else:
+            if not (Path.home() / ".superlock").is_dir():
+                print("SuperLock has not been initialized: superlock init")
+                return
+            if args.action == "encrypt":
+                encrypt(args.path, args.name)
+            elif args.action == "decrypt":
+                decrypt(args.filename, stdout=args.stdout)
+            elif args.action == "list":
+                ls_vault()
+            elif args.action == "delete":
+                delete(args.filename)
+            elif args.action == "purge":
+                purge()
+    except KeyboardInterrupt:
+        print("\nCTRL + C")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()

@@ -31,9 +31,10 @@ def encrypt(path: str, name: str = None):
     if not name:
         name = p.name
 
+
     index = decrypt_index(master_key)
     if name in index.values():
-        logger.error("A file with this name already exists in your vault, please choose a different name!")
+        logger.error("Encryption failed: the requested vault name is already in use")
         sys.exit(1)
 
 
@@ -57,6 +58,7 @@ def encrypt(path: str, name: str = None):
 
     ct = AESGCM(key).encrypt(file_nonce, data, aad_header)
 
+
     encrypted_path = root / "vault" / f"{file_id}.sl"
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
 
@@ -64,7 +66,7 @@ def encrypt(path: str, name: str = None):
         fd = os.open(encrypted_path, flags, 0o600)
         os.fchmod(fd, 0o600)
     except OSError:
-        logger.error("Encryption failed: unable to create vault file")
+
         sys.exit(1)
 
     with os.fdopen(fd, "wb") as file:
@@ -73,9 +75,9 @@ def encrypt(path: str, name: str = None):
 
 
     if not add_to_index({file_id: name}, master_key):
-        logger.error("Encryption failed: failed to add file to Index")
+        logger.error("Encryption failed: failed to update encrypted index")
         sys.exit(1)
-    logger.info("Encryption succeeded")
+    logger.info(f"Encryption succeeded: created {encrypted_path}")
 
 def get_kek(master_key: bytes):
 
@@ -124,11 +126,13 @@ def generate_header(kek):
 
 def decrypt(filename: str, stdout: bool = False, output_path: str | os.PathLike | None = None):
 
+    logger.info("Decryption started")
     master_key, _ = derive_master_key(authenticate(), get_auth("kdf_salt"))
     kek = get_kek(master_key=master_key)
     filepath = lookup_index(filename, master_key)
-
-    full_file_path = Path(root / "vault" / filepath)
+    if filepath is None:
+        logger.error("Decryption failed: file not found in encrypted index")
+        sys.exit(1)
 
     vault_path = root / "vault" / filepath
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_BINARY", 0)
@@ -141,6 +145,7 @@ def decrypt(filename: str, stdout: bool = False, output_path: str | os.PathLike 
     with os.fdopen(fd, "rb") as file:
         try:
             data = file.read()
+            logger.debug("Decryption vault file read: stored_size=%d bytes", len(data))
 
             magic_end = len(MAGIC)
             length_end = magic_end + LENGTH_SIZE
@@ -168,8 +173,7 @@ def decrypt(filename: str, stdout: bool = False, output_path: str | os.PathLike 
             )
         except (KeyError, ValueError):
             logger.critical(
-                f"Decryption failed: Integrity verification failed! "
-                f"{full_file_path} was most likely tampered"
+                "Decryption failed: integrity verification failed; vault data was malformed or tampered"
             )
             sys.exit(1)
         try:
@@ -180,12 +184,11 @@ def decrypt(filename: str, stdout: bool = False, output_path: str | os.PathLike 
             )
         except exceptions.InvalidTag:
             logger.critical(
-                f"Decryption failed: Integrity verification failed! "
-                f"{full_file_path} was most likely tampered"
+                "Decryption failed: integrity verification failed; vault data was tampered"
             )
             sys.exit(1)
         except Exception:
-            logger.error("Decryption failed")
+            logger.error("Decryption failed: unexpected decryption error")
             sys.exit(1)
 
         if stdout:
@@ -194,6 +197,7 @@ def decrypt(filename: str, stdout: bool = False, output_path: str | os.PathLike 
             else:
                 sys.stdout.write(plain_bytes.decode("utf-8", errors="surrogateescape"))
             sys.stdout.flush()
+            logger.debug("Decryption output: destination=stdout plaintext_size=%d bytes", len(plain_bytes))
         else:
             destination = (
                 Path(output_path).expanduser()
@@ -215,8 +219,15 @@ def decrypt(filename: str, stdout: bool = False, output_path: str | os.PathLike 
             except OSError:
                 logger.error("Decryption failed: unable to write recovered file")
                 sys.exit(1)
+            logger.debug(
+                "Decryption output: destination=file plaintext_size=%d bytes",
+                len(plain_bytes),
+            )
 
-        logger.info("Decryption succeeded")
+        logger.info(
+            "Decryption succeeded: plaintext_size=%d bytes",
+            len(plain_bytes),
+        )
         return plain_bytes
         
 
@@ -227,8 +238,7 @@ def lookup_index(filename: str, master_key: bytes | None = None):
         if filen == filename:
             return uuid + ".sl"
 
-    logger.error("File not found!")
-    sys.exit(1)
+    return None
 
 def decrypt_index(master_key= None):
 

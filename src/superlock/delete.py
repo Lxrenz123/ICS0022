@@ -8,12 +8,13 @@ from .purge import overwrite_file
 
 
 def delete(filename: str) -> bool:
+
     master_key, _ = derive_master_key(authenticate(), get_auth("kdf_salt"))
 
     filepath = lookup_index(filename, master_key)
     if filepath is None:
-        print("The file does not exist in your vault")
-        return False
+        logger.error(f"Deletion failed: {filename} not found")
+        sys.exit(1)
 
     vault_root = vault.resolve()
     vault_path = (vault_root / filepath)
@@ -28,7 +29,7 @@ def delete(filename: str) -> bool:
     try:
         overwrite_file(vault_path)   
     except FileNotFoundError:
-        logger.error("File not found")
+        logger.error(f"Deletion failed: {filename} not found")
         sys.exit(1)
 
 

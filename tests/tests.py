@@ -10,9 +10,10 @@ from types import SimpleNamespace
 import pytest
 
 from superlock import auth, crypto, delete, purge
+from superlock import init as superlock_init
 
-PASSPHRASE = "password"
-MARKER = b"TOP-SECRET-MARKER-0123456789"
+PASSPHRASE = "sdfgdfsgdfsgdfs"
+MARKER = b"gfds3453535435433"
 MODULES = [auth, crypto, delete, purge]
 
 
@@ -20,11 +21,40 @@ MODULES = [auth, crypto, delete, purge]
 # Fixtures: isolated HOME, patched prompts, freshly initialised vault
 # ----------------------------------------------------------------------------
 @pytest.fixture
+def sandbox(tmp_path, monkeypatch):
+    home = tmp_path / "home"
+    home.mkdir()
+    root = home / ".superlock"
+    vault = root / "vault"
+    root.mkdir(mode=0o700)
+    vault.mkdir(mode=0o700)
+
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
+
+    monkeypatch.setattr(auth, "root", root)
+    monkeypatch.setattr(superlock_init, "create_superlock_root",
+                        lambda: root)
+    monkeypatch.setattr(crypto, "root", root)
+    monkeypatch.setattr(crypto, "INDEX", root / "index.enc")
+    monkeypatch.setattr(delete, "vault", vault)
+
+    yield SimpleNamespace(
+        home=home,
+        root=root,
+        vault=vault,
+        passphrase=PASSPHRASE,
+    )
+
+
+@pytest.fixture
+def run_setup(sandbox, monkeypatch):
+    monkeypatch.setattr(auth, "getpass", lambda: sandbox.passphrase)
+    assert superlock_init.setup_authjson(PASSPHRASE, sandbox.root) is True
+
+
+@pytest.fixture
 def env(sandbox, run_setup):
     """Reuse the shared isolated HOME and initialize a real vault."""
-    sandbox.root.mkdir(mode=0o700)
-    sandbox.vault.mkdir(mode=0o700)
-    run_setup()
     return sandbox
 
 
@@ -164,7 +194,7 @@ def test_encrypt_rejects_directory(env):
     assert vault_files(env) == []
 
 
-@pytest.mark.skipif(os.name == "nt", reason="symlinks need POSIX")
+
 def test_encrypt_rejects_symlink(env):
     target = make_file(env, "secret.txt", b"secret")
     link = env.home / "link.txt"
