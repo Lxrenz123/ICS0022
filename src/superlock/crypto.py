@@ -38,26 +38,23 @@ def encrypt(path: str, name: str = None):
         sys.exit(1)
 
 
-    aad_header, key, file_nonce, file_id = generate_header(kek)
-    if os.stat(path).st_size > 	1073741824:
-        logger.error("Cannot encrypt files larger than 1 GB")
-        sys.exit(1)
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_BINARY", 0)
     try:
         fd = os.open(p, flags)
-  
-        if not stat.S_ISREG(os.fstat(fd).st_mode):
-            os.close(fd)
-            raise OSError("input is not a regular file")
+        with os.fdopen(fd, "rb") as file:
+            file_stat = os.fstat(file.fileno())
+            if not stat.S_ISREG(file_stat.st_mode):
+                logger.error("Encryption failed: Invalid path")
+                sys.exit(1)
+            if file_stat.st_size > 1073741824:
+                logger.error("Cannot encrypt files larger than 1 GB")
+                sys.exit(1)
+            data = file.read()
     except OSError:
         logger.error("Encryption failed: Invalid path")
         sys.exit(1)
 
-
-
-    with os.fdopen(fd, "rb") as file:
-        data = file.read()
-
+    aad_header, key, file_nonce, file_id = generate_header(kek)
 
     ct = AESGCM(key).encrypt(file_nonce, data, aad_header)
 

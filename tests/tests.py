@@ -64,9 +64,9 @@ def make_file(env, name="plain.txt", content=MARKER):
     return path
 
 
-def decrypted(name, capsys):
+def decrypted(name, capsys, tmp_path):
     capsys.readouterr()
-    return crypto.decrypt(name, output_path=Path("/tmp") / "unused-decrypted-name")
+    return crypto.decrypt(name, output_path=tmp_path / "decrypted.bin")
 
 
 def vault_files(env):
@@ -78,10 +78,10 @@ def vault_files(env):
 # ----------------------------------------------------------------------------
 @pytest.mark.parametrize("content", [b"", b"\x00", MARKER, os.urandom(70_000)],
                          ids=["empty", "one_byte", "text", "binary_70k"])
-def test_roundtrip_returns_identical_bytes(env, capsys, content):
+def test_roundtrip_returns_identical_bytes(env, capsys, tmp_path, content):
     src = make_file(env, content=content)
     crypto.encrypt(str(src))
-    assert decrypted(src.name, capsys) == content
+    assert decrypted(src.name, capsys, tmp_path) == content
 
 
 def test_vault_file_does_not_contain_plaintext(env):

@@ -82,7 +82,21 @@ superlock list
 Displays files stored in the SuperLock vault without exposing their contents, only displaying name.
 
 
+### Delete vault file
 
+```bash
+superlock delete <stored-name>
+```
+
+Securely deletes and removes vault file from your vault.
+
+### Purge everything
+
+```bash
+superlock purge 
+```
+
+Warning!: Securely deletes everything under and including ~/.superlock/
 ### Help
 
 ```bash
