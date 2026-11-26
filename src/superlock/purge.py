@@ -3,6 +3,7 @@ import secrets
 import shutil
 import stat
 from pathlib import Path
+from .auth import authenticate
 
 CHUNK = 1024 * 1024
 
@@ -27,6 +28,7 @@ def overwrite_file(path: Path):
 
 
 def purge() -> bool:
+    authenticate()
     superlock_dir = Path.home() / ".superlock"
     if superlock_dir.is_symlink() or not superlock_dir.is_dir():
         print("SuperLock directory does not exist (or is a symlink)")

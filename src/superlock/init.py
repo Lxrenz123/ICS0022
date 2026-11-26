@@ -56,7 +56,7 @@ def init():
 def create_superlock_root():
     try:
         superlock_dir = Path.home() / ".superlock"
-        Path.mkdir(superlock_dir, exist_ok=True)
+        Path.mkdir(superlock_dir, exist_ok=True, mode = 0o700)
 
         Path.mkdir(superlock_dir / "vault", exist_ok=True, mode=0o700)
 
@@ -69,7 +69,7 @@ def create_superlock_root():
 def set_masterpw():
     master_pw = ""
     master_pw_confirm = ""
-    while master_pw != master_pw_confirm or len(master_pw) == 0:
+    while master_pw != master_pw_confirm or len(master_pw) == 0 or len(master_pw) < 8:
         print("-- Please setup your master password --")
         master_pw = getpass(prompt="Master Password: ")
         master_pw_confirm = getpass(prompt="Confirm Master: ")

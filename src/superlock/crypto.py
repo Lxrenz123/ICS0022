@@ -39,17 +39,20 @@ def encrypt(path: str, name: str = None):
 
 
     aad_header, key, file_nonce, file_id = generate_header(kek)
-
+    if os.stat(path).st_size > 	1073741824:
+        logger.error("Cannot encrypt files larger than 1 GB")
+        sys.exit(1)
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_BINARY", 0)
     try:
-        fd = os.open(p, flags, 0o600)
-        os.fchmod(fd, 0o600)
+        fd = os.open(p, flags)
+  
         if not stat.S_ISREG(os.fstat(fd).st_mode):
             os.close(fd)
             raise OSError("input is not a regular file")
     except OSError:
         logger.error("Encryption failed: Invalid path")
         sys.exit(1)
+
 
 
     with os.fdopen(fd, "rb") as file:
@@ -166,12 +169,16 @@ def decrypt(filename: str, stdout: bool = False, output_path: str | os.PathLike 
 
             ciphertext = data[header_end:]
 
+            if not header_json["file_id"] == filepath.removesuffix(".sl"):
+                logger.critical("Decryption failed: integrity verification failed; vault data was malformed or tampered")       
+                sys.exit(1)
+
             file_key = AESGCM(kek).decrypt(
                 wrap_nonce,
                 wrapped_key,
                 None,
             )
-        except (KeyError, ValueError):
+        except (KeyError, ValueError, exceptions.InvalidTag):
             logger.critical(
                 "Decryption failed: integrity verification failed; vault data was malformed or tampered"
             )
@@ -210,6 +217,7 @@ def decrypt(filename: str, stdout: bool = False, output_path: str | os.PathLike 
                 | os.O_TRUNC
                 | getattr(os, "O_NOFOLLOW", 0)
                 | getattr(os, "O_BINARY", 0)
+                | getattr(os, "O_EXCL", 0)
             )
             try:
                 fd = os.open(destination, flags, 0o600)
@@ -217,7 +225,7 @@ def decrypt(filename: str, stdout: bool = False, output_path: str | os.PathLike 
                 with os.fdopen(fd, "wb") as recovered:
                     recovered.write(plain_bytes)
             except OSError:
-                logger.error("Decryption failed: unable to write recovered file")
+                logger.error("Decryption failed: unable to write recovered file, maybe it already exists in your current working directory")
                 sys.exit(1)
             logger.debug(
                 "Decryption output: destination=file plaintext_size=%d bytes",
