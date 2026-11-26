@@ -126,7 +126,7 @@ def generate_header(kek):
 
 def decrypt(filename: str, stdout: bool = False, output_path: str | os.PathLike | None = None):
 
-    logger.info("Decryption started")
+
     master_key, _ = derive_master_key(authenticate(), get_auth("kdf_salt"))
     kek = get_kek(master_key=master_key)
     filepath = lookup_index(filename, master_key)
